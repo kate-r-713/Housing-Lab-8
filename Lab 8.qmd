@@ -1,0 +1,108 @@
+---
+title: "Lab 8"
+format: html
+editor: visual
+jupyter: housingenv
+---
+
+```{r}
+library(reticulate)
+use_condaenv("housingenv", required = TRUE)
+```
+
+```{python}
+import tensorflow as tf
+print(tf.__version__)
+```
+
+```{python}
+import os
+import pandas as pd
+import numpy as np
+import joblib
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error, r2_score
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+df = pd.read_csv("Housing_Hamilton_Compressed_Final.csv")
+print(df.head())
+print(df.columns.tolist())
+```
+
+```{python}
+features = ["CALC_ACRES", "LAND_USE_CODE_DESC", "PROPERTY_TYPE_CODE_DESC"]
+target = "APPRAISED_VALUE"
+
+# Keep only needed columns
+df = df[features + [target]].copy()
+
+# Remove rows missing the numeric feature or target
+df = df.dropna(subset=["CALC_ACRES", "APPRAISED_VALUE"])
+
+# Fill missing categorical values instead of deleting rows
+df["LAND_USE_CODE_DESC"] = df["LAND_USE_CODE_DESC"].fillna("Unknown")
+df["PROPERTY_TYPE_CODE_DESC"] = df["PROPERTY_TYPE_CODE_DESC"].fillna("Unknown")
+
+# Convert categorical variables into numeric dummy variables
+df = pd.get_dummies(
+    df,
+    columns=["LAND_USE_CODE_DESC", "PROPERTY_TYPE_CODE_DESC"],
+    drop_first=True
+)
+
+# Separate features and target
+X = df.drop(columns=[target])
+y = df[target]
+
+# Verify dataset isn't empty
+print("Dataset shape:", df.shape)
+```
+
+```{python}
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+```
+
+```{python}
+import tensorflow as tf
+
+model = tf.keras.Sequential([
+    tf.keras.layers.Dense(128, activation="relu", input_shape=(X_train_scaled.shape[1],)),
+    tf.keras.layers.Dense(64, activation="relu"),
+    tf.keras.layers.Dense(32, activation="relu"),
+    tf.keras.layers.Dense(1)
+])
+
+model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+
+history = model.fit(
+    X_train_scaled,
+    y_train,
+    validation_split=0.2,
+    epochs=50,
+    batch_size=32,
+    verbose=1
+)
+```
+
+```{python}
+loss, mae = model.evaluate(X_test_scaled, y_test, verbose=0)
+print("Test MAE:", mae)
+
+os.makedirs("artifacts", exist_ok=True)
+model.save("artifacts/housing_model.h5")
+joblib.dump(scaler, "artifacts/scaler.pkl")
+joblib.dump(features, "artifacts/feature_names.pkl")
+```
