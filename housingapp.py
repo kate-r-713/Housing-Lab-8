@@ -2,23 +2,27 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import tensorflow as tf
+import onnxruntime as rt
 
-# Load model and preprocessing objects
+# -----------------------------
+# Load model artifacts
+# -----------------------------
 @st.cache_resource
 def load_artifacts():
-    model = tf.keras.models.load_model("./artifacts/housing_model.h5")
+    session = rt.InferenceSession("./artifacts/housing_model.onnx")
     scaler = joblib.load("./artifacts/scaler.pkl")
     feature_names = joblib.load("./artifacts/feature_names.pkl")
-    return model, scaler, feature_names
+    return session, scaler, feature_names
 
-model, scaler, feature_names = load_artifacts()
+session, scaler, feature_names = load_artifacts()
 
-st.title("🏠 Housing Price Prediction App")
+st.title("🏠 Housing Price Prediction")
 
-st.write("Enter housing details to estimate the median house value.")
+st.write("Enter housing characteristics to estimate median house value.")
 
-# --- User Inputs ---
+# -----------------------------
+# User Inputs
+# -----------------------------
 longitude = st.number_input("Longitude", value=-122.23)
 latitude = st.number_input("Latitude", value=37.88)
 housing_median_age = st.number_input("Housing Median Age", value=41)
@@ -33,7 +37,9 @@ ocean_proximity = st.selectbox(
     ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"]
 )
 
-# --- Prepare Input Data ---
+# -----------------------------
+# Prepare Input Data
+# -----------------------------
 input_dict = {
     "longitude": longitude,
     "latitude": latitude,
@@ -48,20 +54,31 @@ input_dict = {
 
 input_df = pd.DataFrame([input_dict])
 
-# One-hot encode to match training
+# One-hot encode ocean proximity
 input_df = pd.get_dummies(input_df)
 
-# Ensure columns match training features
+# Ensure same columns as training data
 for col in feature_names:
     if col not in input_df.columns:
         input_df[col] = 0
 
 input_df = input_df[feature_names]
 
-# Scale numeric values
+# Scale input
 scaled_input = scaler.transform(input_df)
 
-# --- Prediction ---
+# Convert to float32 for ONNX
+scaled_input = scaled_input.astype(np.float32)
+
+# -----------------------------
+# Prediction
+# -----------------------------
 if st.button("Predict House Price"):
-    prediction = model.predict(scaled_input)
-    st.success(f"Estimated Median House Value: ${prediction[0][0]:,.2f}")
+
+    input_name = session.get_inputs()[0].name
+    pred = session.run(None, {input_name: scaled_input})
+
+    prediction = pred[0][0][0]
+
+    st.success(f"Estimated Median House Value: ${prediction:,.2f}")
+
