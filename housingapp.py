@@ -10,11 +10,11 @@ import os
 # -----------------------------
 @st.cache_resource
 def load_artifacts():
-    # Extract model if not already
     os.makedirs("artifacts", exist_ok=True)
     zip_path = "artifacts/housing_model.zip"
     pkl_path = "artifacts/housing_model.pkl"
     
+    # Extract model from zip if not already present
     if not os.path.exists(pkl_path):
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall("artifacts/")
@@ -31,7 +31,6 @@ model, scaler, feature_names = load_artifacts()
 # App title and description
 # -----------------------------
 st.title("🏠 Hamilton Housing Price Estimator")
-
 st.markdown(
     """
 ⚠️ **Disclaimer:**  
