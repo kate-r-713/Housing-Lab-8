@@ -2,13 +2,25 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+import zipfile
+import os
 
 # -----------------------------
 # Load model and artifacts
 # -----------------------------
 @st.cache_resource
 def load_artifacts():
-    model = joblib.load("artifacts/housing_model.pkl")
+    # Extract model if not already
+    os.makedirs("artifacts", exist_ok=True)
+    zip_path = "artifacts/housing_model.zip"
+    pkl_path = "artifacts/housing_model.pkl"
+    
+    if not os.path.exists(pkl_path):
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall("artifacts/")
+    
+    # Load artifacts
+    model = joblib.load(pkl_path)
     scaler = joblib.load("artifacts/scaler.pkl")
     feature_names = joblib.load("artifacts/feature_names.pkl")
     return model, scaler, feature_names
