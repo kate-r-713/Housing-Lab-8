@@ -1,6 +1,6 @@
 streamlit
-onnxruntime
-numpy
+tensorflow
 pandas
+numpy
 joblib
 scikit-learn
