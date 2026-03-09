@@ -1,70 +1,67 @@
 import streamlit as st
-import onnxruntime as rt
-import joblib
+import pandas as pd
 import numpy as np
+import joblib
+import tensorflow as tf
 
+# Load model and preprocessing objects
 @st.cache_resource
 def load_artifacts():
-    session = rt.InferenceSession("./artifacts/housing_model.onnx")
+    model = tf.keras.models.load_model("./artifacts/housing_model.h5")
     scaler = joblib.load("./artifacts/scaler.pkl")
     feature_names = joblib.load("./artifacts/feature_names.pkl")
-    return session, scaler, feature_names
+    return model, scaler, feature_names
 
-sess, scaler, feature_names = load_artifacts()
+model, scaler, feature_names = load_artifacts()
 
-st.title("🏠 Hamilton Housing Price Estimator")
+st.title("🏠 Housing Price Prediction App")
 
-st.markdown(
-"""
-⚠️ **Disclaimer:**  
-This prediction is an approximate estimate based on historical property data.
-Actual appraised values may differ.
-"""
+st.write("Enter housing details to estimate the median house value.")
+
+# --- User Inputs ---
+longitude = st.number_input("Longitude", value=-122.23)
+latitude = st.number_input("Latitude", value=37.88)
+housing_median_age = st.number_input("Housing Median Age", value=41)
+total_rooms = st.number_input("Total Rooms", value=880)
+total_bedrooms = st.number_input("Total Bedrooms", value=129)
+population = st.number_input("Population", value=322)
+households = st.number_input("Households", value=126)
+median_income = st.number_input("Median Income", value=8.3252)
+
+ocean_proximity = st.selectbox(
+    "Ocean Proximity",
+    ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"]
 )
 
-# Inputs
-calc_acres = st.number_input(
-    "Lot Size (Acres)",
-    min_value=0.0,
-    max_value=50.0,
-    value=0.25,
-    step=0.01
-)
-
-land_use = st.selectbox(
-    "Land Use Type",
-    ["Single Family", "Condo", "Multi-Family", "Unknown"]
-)
-
-property_type = st.selectbox(
-    "Property Type",
-    ["Residential", "Commercial", "Vacant", "Unknown"]
-)
-
-# Build feature row
-input_dict = {col: 0 for col in feature_names}
-input_dict["CALC_ACRES"] = calc_acres
-
-land_col = f"LAND_USE_CODE_DESC_{land_use}"
-prop_col = f"PROPERTY_TYPE_CODE_DESC_{property_type}"
-
-if land_col in input_dict:
-    input_dict[land_col] = 1
-
-if prop_col in input_dict:
-    input_dict[prop_col] = 1
+# --- Prepare Input Data ---
+input_dict = {
+    "longitude": longitude,
+    "latitude": latitude,
+    "housing_median_age": housing_median_age,
+    "total_rooms": total_rooms,
+    "total_bedrooms": total_bedrooms,
+    "population": population,
+    "households": households,
+    "median_income": median_income,
+    "ocean_proximity": ocean_proximity
+}
 
 input_df = pd.DataFrame([input_dict])
 
-# Scale features
+# One-hot encode to match training
+input_df = pd.get_dummies(input_df)
+
+# Ensure columns match training features
+for col in feature_names:
+    if col not in input_df.columns:
+        input_df[col] = 0
+
+input_df = input_df[feature_names]
+
+# Scale numeric values
 scaled_input = scaler.transform(input_df)
 
-# Predict
-input_name = sess.get_inputs()[0].name
-prediction = sess.run(None, {input_name: scaled_input.astype(np.float32)})[0][0]
-
-# Display result
-st.subheader("💰 Estimated Appraised Value")
-
-st.success(f"${prediction:,.0f}")
-
+# --- Prediction ---
+if st.button("Predict House Price"):
+    prediction = model.predict(scaled_input)
+    st.success(f"Estimated Median House Value: ${prediction[0][0]:,.2f}")
