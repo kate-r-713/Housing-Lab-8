@@ -1,0 +1,117 @@
+---
+title: "Lab 8"
+format: html
+editor: visual
+jupyter: housingenv
+---
+
+```{r}
+library(reticulate)
+use_condaenv("housingenv", required = TRUE)
+```
+
+```{python}
+import tensorflow as tf
+print("TensorFlow version:", tf.__version__)
+```
+
+```{python}
+import os
+import pandas as pd
+import numpy as np
+import joblib
+
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+
+# Load dataset
+df = pd.read_csv("Housing_Hamilton_Compressed_Final.csv")
+
+features = ["CALC_ACRES", "LAND_USE_CODE_DESC", "PROPERTY_TYPE_CODE_DESC"]
+target = "APPRAISED_VALUE"
+
+df = df[features + [target]].copy()
+
+# Clean data
+df = df.dropna(subset=["CALC_ACRES", "APPRAISED_VALUE"])
+df["LAND_USE_CODE_DESC"] = df["LAND_USE_CODE_DESC"].fillna("Unknown")
+df["PROPERTY_TYPE_CODE_DESC"] = df["PROPERTY_TYPE_CODE_DESC"].fillna("Unknown")
+
+# One-hot encode
+df = pd.get_dummies(
+    df,
+    columns=["LAND_USE_CODE_DESC", "PROPERTY_TYPE_CODE_DESC"],
+    drop_first=True
+)
+
+# Split features and target
+X = df.drop(columns=[target])
+y = df[target]
+
+print("Dataset shape:", df.shape)
+```
+
+```{python}
+# Train test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Scale features
+scaler = StandardScaler()
+
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+```
+
+```{python}
+# Build neural network
+model = Sequential([
+    Dense(128, activation="relu", input_shape=(X_train_scaled.shape[1],)),
+    Dense(64, activation="relu"),
+    Dense(32, activation="relu"),
+    Dense(1)
+])
+
+model.compile(optimizer="adam", loss="mse", metrics=["mae"])
+
+history = model.fit(
+    X_train_scaled,
+    y_train,
+    validation_split=0.2,
+    epochs=50,
+    batch_size=32,
+    verbose=1
+)
+```
+
+```{python}
+# Evaluate
+loss, mae = model.evaluate(X_test_scaled, y_test, verbose=0)
+print("Test MAE:", mae)
+
+# Save artifacts
+os.makedirs("artifacts", exist_ok=True)
+
+joblib.dump(scaler, "artifacts/scaler.pkl")
+joblib.dump(X.columns.tolist(), "artifacts/feature_names.pkl")
+
+model.save("artifacts/housing_model.h5")
+```
+
+```{python}
+# Convert model to ONNX
+import tf2onnx
+
+spec = (tf.TensorSpec((None, X_train_scaled.shape[1]), tf.float32, name="input"),)
+
+model_proto, _ = tf2onnx.convert.from_keras(model, input_signature=spec)
+
+with open("artifacts/housing_model.onnx", "wb") as f:
+    f.write(model_proto.SerializeToString())
+
+print("ONNX model saved.")
+```
