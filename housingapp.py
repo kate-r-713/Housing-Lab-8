@@ -14,12 +14,12 @@ def load_artifacts():
     zip_path = "artifacts/housing_model.zip"
     pkl_path = "artifacts/housing_model.pkl"
     
-    # Extract model from zip if not already present
+    # Extract the model if it doesn't exist yet
     if not os.path.exists(pkl_path):
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall("artifacts/")
     
-    # Load artifacts
+    # Load model and preprocessing artifacts
     model = joblib.load(pkl_path)
     scaler = joblib.load("artifacts/scaler.pkl")
     feature_names = joblib.load("artifacts/feature_names.pkl")
@@ -31,6 +31,7 @@ model, scaler, feature_names = load_artifacts()
 # App title and description
 # -----------------------------
 st.title("🏠 Hamilton Housing Price Estimator")
+
 st.markdown(
     """
 ⚠️ **Disclaimer:**  
