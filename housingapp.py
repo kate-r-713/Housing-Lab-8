@@ -31,7 +31,6 @@ model, scaler, feature_names = load_artifacts()
 # App title and description
 # -----------------------------
 st.title("🏠 Hamilton Housing Price Estimator")
-
 st.markdown(
     """
 ⚠️ **Disclaimer:**  
