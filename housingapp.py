@@ -1,15 +1,13 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import joblib
 import onnxruntime as rt
+import joblib
+import numpy as np
 
-# Load artifacts
 @st.cache_resource
 def load_artifacts():
-    session = rt.InferenceSession("artifacts/housing_model.onnx")
-    scaler = joblib.load("artifacts/scaler.pkl")
-    feature_names = joblib.load("artifacts/feature_names.pkl")
+    session = rt.InferenceSession("./artifacts/housing_model.onnx")
+    scaler = joblib.load("./artifacts/scaler.pkl")
+    feature_names = joblib.load("./artifacts/feature_names.pkl")
     return session, scaler, feature_names
 
 sess, scaler, feature_names = load_artifacts()
@@ -69,3 +67,4 @@ prediction = sess.run(None, {input_name: scaled_input.astype(np.float32)})[0][0]
 st.subheader("💰 Estimated Appraised Value")
 
 st.success(f"${prediction:,.0f}")
+
