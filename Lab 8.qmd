@@ -105,29 +105,40 @@ model.save("artifacts/housing_model.h5")
 ```{python}
 import tensorflow as tf
 import tf2onnx
+import joblib
 import os
 
 os.makedirs("artifacts", exist_ok=True)
 
-# Save scaler and features
+# Save preprocessing objects
 joblib.dump(scaler, "artifacts/scaler.pkl")
 joblib.dump(X.columns.tolist(), "artifacts/feature_names.pkl")
 
 # Save keras model
 model.save("artifacts/housing_model.h5")
 
-# Convert to ONNX
-spec = (tf.TensorSpec((None, X_train_scaled.shape[1]), tf.float32, name="input"),)
+# Define input signature
+input_signature = [
+    tf.TensorSpec((None, X_train_scaled.shape[1]), tf.float32, name="input")
+]
 
-model_proto, _ = tf2onnx.convert.from_keras(
-    model,
-    input_signature=spec,
+# Wrap model in tf.function
+@tf.function
+def model_fn(x):
+    return model(x)
+
+# Convert model to ONNX
+onnx_model, _ = tf2onnx.convert.from_function(
+    model_fn,
+    input_signature=input_signature,
     opset=13
 )
 
+# Save ONNX file
 with open("artifacts/housing_model.onnx", "wb") as f:
-    f.write(model_proto.SerializeToString())
+    f.write(onnx_model.SerializeToString())
 
 print("ONNX model saved successfully.")
 ```
+
 
