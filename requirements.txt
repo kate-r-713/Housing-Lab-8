@@ -1,5 +1,5 @@
 streamlit
-onnxruntime
+onnxruntime==1.17.0
 numpy
 pandas
 joblib
