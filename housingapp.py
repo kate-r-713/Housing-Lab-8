@@ -5,80 +5,55 @@ import joblib
 import onnxruntime as rt
 
 # -----------------------------
-# Load model artifacts
+# Load ONNX model and preprocessing
 # -----------------------------
 @st.cache_resource
 def load_artifacts():
-    session = rt.InferenceSession("./artifacts/housing_model.onnx")
-    scaler = joblib.load("./artifacts/scaler.pkl")
-    feature_names = joblib.load("./artifacts/feature_names.pkl")
+    session = rt.InferenceSession("artifacts/housing_model.onnx")
+    scaler = joblib.load("artifacts/scaler.pkl")
+    feature_names = joblib.load("artifacts/feature_names.pkl")
     return session, scaler, feature_names
 
 session, scaler, feature_names = load_artifacts()
 
-st.title("🏠 Housing Price Prediction")
-
-st.write("Enter housing characteristics to estimate median house value.")
-
 # -----------------------------
-# User Inputs
+# App title and description
 # -----------------------------
-longitude = st.number_input("Longitude", value=-122.23)
-latitude = st.number_input("Latitude", value=37.88)
-housing_median_age = st.number_input("Housing Median Age", value=41)
-total_rooms = st.number_input("Total Rooms", value=880)
-total_bedrooms = st.number_input("Total Bedrooms", value=129)
-population = st.number_input("Population", value=322)
-households = st.number_input("Households", value=126)
-median_income = st.number_input("Median Income", value=8.3252)
-
-ocean_proximity = st.selectbox(
-    "Ocean Proximity",
-    ["<1H OCEAN", "INLAND", "ISLAND", "NEAR BAY", "NEAR OCEAN"]
-)
+st.title("🏠 Hamilton Housing Price Estimator")
+st.markdown("⚠️ **Note:** This is a rough estimate. Actual values may vary.")
 
 # -----------------------------
-# Prepare Input Data
+# Inputs
 # -----------------------------
-input_dict = {
-    "longitude": longitude,
-    "latitude": latitude,
-    "housing_median_age": housing_median_age,
-    "total_rooms": total_rooms,
-    "total_bedrooms": total_bedrooms,
-    "population": population,
-    "households": households,
-    "median_income": median_income,
-    "ocean_proximity": ocean_proximity
-}
+calc_acres = st.number_input("Lot Size (Acres)", min_value=0.0, max_value=50.0, value=0.25, step=0.01)
+land_use_options = ["Single Family", "Condo", "Multi-Family", "Unknown"]
+land_use = st.selectbox("Land Use Type", land_use_options)
+property_type_options = ["Residential", "Commercial", "Vacant", "Unknown"]
+property_type = st.selectbox("Property Type", property_type_options)
+
+# -----------------------------
+# Build input DataFrame
+# -----------------------------
+input_dict = {feat: 0 for feat in feature_names}
+input_dict["CALC_ACRES"] = calc_acres
+
+# One-hot encode categorical features
+land_use_col = f"LAND_USE_CODE_DESC_{land_use}"
+if land_use_col in input_dict: input_dict[land_use_col] = 1
+
+property_type_col = f"PROPERTY_TYPE_CODE_DESC_{property_type}"
+if property_type_col in input_dict: input_dict[property_type_col] = 1
 
 input_df = pd.DataFrame([input_dict])
 
-# One-hot encode ocean proximity
-input_df = pd.get_dummies(input_df)
-
-# Ensure same columns as training data
-for col in feature_names:
-    if col not in input_df.columns:
-        input_df[col] = 0
-
-input_df = input_df[feature_names]
-
 # Scale input
-scaled_input = scaler.transform(input_df)
-
-# Convert to float32 for ONNX
-scaled_input = scaled_input.astype(np.float32)
+scaled_input = scaler.transform(input_df).astype(np.float32)
 
 # -----------------------------
 # Prediction
 # -----------------------------
 if st.button("Predict House Price"):
-
     input_name = session.get_inputs()[0].name
-    pred = session.run(None, {input_name: scaled_input})
-
-    prediction = pred[0][0][0]
-
-    st.success(f"Estimated Median House Value: ${prediction:,.2f}")
-
+    predicted_value = session.run(None, {input_name: scaled_input})[0][0]
+    st.subheader("💰 Estimated Appraised Value")
+    st.success(f"${predicted_value:,.0f}")
